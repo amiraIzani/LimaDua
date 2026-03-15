@@ -59,6 +59,22 @@ class Activation:
         idx = np.arange(s.shape[1])
         jacobian[:, idx, idx] += s
         return jacobian
+    
+    @staticmethod
+    def leaky_relu(x, alpha=0.01):
+        return np.where(x > 0, x, alpha * x)
+
+    @staticmethod
+    def leaky_relu_derivative(x, alpha=0.01):
+        return np.where(x > 0, 1, alpha)
+    
+    @staticmethod
+    def elu(x, alpha=1.0):
+        return np.where(x > 0, x, alpha * (np.exp(x) - 1))
+
+    @staticmethod
+    def elu_derivative(x, alpha=1.0):
+        return np.where(x > 0, 1, alpha * np.exp(x))
 
 class Loss:
     @staticmethod
@@ -67,7 +83,7 @@ class Loss:
     
     @staticmethod
     def mse_derivative(y_true, y_pred):
-        return 2 * (y_pred - y_true) / y_true.size
+        return 2 * (y_pred - y_true) / y_true.shape[0]
 
     @staticmethod
     def bce(y_true, y_pred):
@@ -113,6 +129,14 @@ class Layer:
         elif activation == 'softmax':
             self.activation = Activation.softmax
             self.activation_derivative = Activation.softmax_derivative
+        elif activation == 'leaky_relu':
+            alpha = kwargs.get('alpha', 0.01)
+            self.activation = lambda x, a=alpha: Activation.leaky_relu(x, a)
+            self.activation_derivative = lambda x, a=alpha: Activation.leaky_relu_derivative(x, a)
+        elif activation == 'elu':
+            alpha = kwargs.get('alpha', 1.0)
+            self.activation = lambda x, a=alpha: Activation.elu(x, a)
+            self.activation_derivative = lambda x, a=alpha: Activation.elu_derivative(x, a)
         else:
             raise ValueError("Unsupported activation function")
             
@@ -142,6 +166,14 @@ class Layer:
             self.biases = rng.normal(mean, std, (1, output_size))
             self.init_params['mean'] = mean
             self.init_params['variance'] = variance
+        elif weight_init == 'xavier':
+            x = np.sqrt(6.0 / (input_size + output_size))
+            self.weights = rng.uniform(-x, x, (input_size, output_size))
+            self.biases = np.zeros((1, output_size))
+        elif weight_init == 'he':
+            std = np.sqrt(2.0 / input_size)
+            self.weights = rng.normal(0.0, std, (input_size, output_size))
+            self.biases = np.zeros((1, output_size))
         else:
             raise ValueError("Unsupported weight init method")
          
@@ -203,7 +235,7 @@ class FFNN:
         self.l1_lambda = l1_lambda
         self.l2_lambda = l2_lambda
         
-        if loss == 'mse':
+        if loss == 'mse': 
             self.loss_func = Loss.mse
             self.loss_derivative = Loss.mse_derivative
         elif loss == 'binary_crossentropy':
